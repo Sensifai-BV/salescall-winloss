@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/sensifai/api-keys";
 import { callSensifaiAIJson } from "@/lib/sensifai/ai";
+import { usageService } from "@/lib/sensifai/usage";
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -20,6 +21,11 @@ export async function OPTIONS() {
  * Headless B2B API Endpoint for External Integrations & Automated Call Dialers
  * POST /api/v1/process
  * Authorization: Bearer <token>  OR  X-API-Key: <token>
+ *
+ * METERED BILLING & WALLET ENFORCEMENT:
+ * Each request is strictly authenticated via dedicated application key.
+ * The key's owning Sensifai account wallet is pre-checked and atomically deducted
+ * via Gatekeeper (€0.05 / request). If wallet balance is depleted, returns HTTP 402.
  *
  * STRICT ZERO LOGTO ID LEAKAGE:
  * Strictly zero personal Logto IDs, personal user tokens, or developer secrets are exposed.
@@ -45,6 +51,53 @@ export async function POST(req: NextRequest) {
           status: 401,
           headers: {
             "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    const ownerId = keyRecord.userId;
+    if (!ownerId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Unauthorized: This API key is not linked to an active Sensifai account wallet.",
+          code: "UNAUTHORIZED_KEY",
+        },
+        {
+          status: 401,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    // Atomic Wallet Pre-Check + Usage Deduction via Gatekeeper
+    const deduction = await usageService.deductAndSyncWallet({
+      logtoUserId: ownerId,
+      operation: "b2b_salescall_winloss_eval",
+      usageUnits: 1,
+    });
+
+    if (!deduction.success || deduction.status === 402) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "PAYMENT_REQUIRED",
+          error:
+            deduction.error ||
+            "Prepaid wallet balance depleted or insufficient. Please top up your Sensifai wallet.",
+          top_up_url: deduction.topUpUrl || "https://sensifai.com/marketplace",
+          current_balance: deduction.wallet?.balance ?? 0,
+          currency: deduction.wallet?.currency ?? "EUR",
+        },
+        {
+          status: 402,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
           },
         }
       );
@@ -157,6 +210,9 @@ ${transcript}`;
         success: true,
         reportId: processResult.reportId || reportId,
         apiKeyUsed: keyRecord.maskedKey,
+        deducted_eur: deduction.deductedAmount,
+        remaining_balance: deduction.wallet.balance,
+        currency: deduction.wallet.currency,
         result: processResult,
         timestamp: new Date().toISOString(),
       },

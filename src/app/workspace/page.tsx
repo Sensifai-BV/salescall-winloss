@@ -134,6 +134,10 @@ export default function WorkspacePage() {
   }, []);
 
   const handleGenerateKey = async () => {
+    if (!session?.authenticated) {
+      setKeyNoticeMsg("Authentication required: Please sign in before minting an API key.");
+      return;
+    }
     setGeneratingKey(true);
     setKeyNoticeMsg(null);
     try {
@@ -142,6 +146,10 @@ export default function WorkspacePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newKeyName, prefix: "sc" }),
       });
+      if (res.status === 401) {
+        setKeyNoticeMsg("Authentication required: Please sign in before minting an API key.");
+        return;
+      }
       const data = await res.json();
       if (data.success && data.apiKey) {
         setGeneratedKey(data.apiKey);
@@ -978,38 +986,49 @@ export default function WorkspacePage() {
                   Generate an isolated bearer token for your sales dialer, CRM webhook, or telephony pipeline.
                 </p>
 
-                {keyNoticeMsg && (
-                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs">
-                    {keyNoticeMsg}
-                  </div>
-                )}
-
-                {generatedKey && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-1.5 font-mono">
-                    <div className="font-bold text-[11px] text-emerald-800">New Token Minted (Copy Now):</div>
-                    <div className="p-2 rounded bg-white border border-emerald-300 break-all select-all">
-                      {generatedKey}
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={newKeyName}
-                    onChange={(e) => setNewKeyName(e.target.value)}
-                    placeholder="Key Label (e.g. Gong Dialer Ingestion)"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-blue-600"
+                {!session?.authenticated ? (
+                  <AuthGateCard
+                    authenticated={false}
+                    primaryColor={APP_METADATA.primaryColor}
+                    priceEur={0.05}
+                    featureTitle="Mint Dedicated B2B Application Keys"
                   />
-                  <button
-                    onClick={handleGenerateKey}
-                    disabled={generatingKey}
-                    className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2"
-                  >
-                    {generatingKey ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Key className="h-3.5 w-3.5" />}
-                    <span>Generate Application Key</span>
-                  </button>
-                </div>
+                ) : (
+                  <>
+                    {keyNoticeMsg && (
+                      <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs">
+                        {keyNoticeMsg}
+                      </div>
+                    )}
+
+                    {generatedKey && (
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-1.5 font-mono">
+                        <div className="font-bold text-[11px] text-emerald-800">New Token Minted (Copy Now):</div>
+                        <div className="p-2 rounded bg-white border border-emerald-300 break-all select-all">
+                          {generatedKey}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={newKeyName}
+                        onChange={(e) => setNewKeyName(e.target.value)}
+                        placeholder="Key Label (e.g. Gong Dialer Ingestion)"
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-blue-600"
+                      />
+                      <button
+                        onClick={handleGenerateKey}
+                        disabled={generatingKey}
+                        className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2"
+                      >
+                        {generatingKey ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Key className="h-3.5 w-3.5" />}
+                        <span>Generate Application Key</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Active Keys List */}
@@ -1020,7 +1039,11 @@ export default function WorkspacePage() {
                 </div>
 
                 <div className="space-y-2 max-h-[260px] overflow-y-auto">
-                  {apiKeys.length === 0 ? (
+                  {!session?.authenticated ? (
+                    <div className="text-center py-8 text-xs text-slate-400">
+                      Sign in with your Sensifai account to view your active application keys.
+                    </div>
+                  ) : apiKeys.length === 0 ? (
                     <div className="text-center py-8 text-xs text-slate-400">
                       No application keys issued yet. Generate one to start.
                     </div>

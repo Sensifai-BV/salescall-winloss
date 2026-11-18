@@ -55,11 +55,13 @@ All 8 automated user journeys executed with zero exceptions and zero console war
    - **Desktop (1280px)**: Collapsible Left Sidebar & Live Wallet Card rendered cleanly.
    - **Mobile (375px)**: Native Fixed Bottom Navigation Bar (`h-16`) rendered; verified `scrollWidth <= innerWidth` with zero horizontal overflow.
 
-7. **Journey 7: Headless B2B REST API & Zero Logto ID Leakage**
+7. **Journey 7: Headless B2B REST API, Auth Gate & Prepaid Wallet Enforcement**
    - `GET /api/v1/standards`: HTTP 200 OK with MEDDPICC qualification taxonomy; verified zero Logto ID leakage.
-   - `POST /api/v1/keys`: Generated dedicated application key (`sensi_live_...`) with zero Logto ID leakage.
+   - `POST /api/v1/keys` (Guest): Strictly rejected with HTTP 401 UNAUTHORIZED (unauthenticated guests cannot mint keys).
+   - `POST /api/v1/keys` (Auth): Generated dedicated application key (`sc_live_...`) linked to customer's account wallet with zero Logto ID leakage.
    - `GET /api/v1/keys`: Masked keys returned with zero Logto ID leakage.
-   - `POST /api/v1/process`: Authenticated via Bearer token and `X-API-Key` header with zero Logto ID leakage.
+   - `POST /api/v1/process` (Zero Balance): Strictly rejected with HTTP 402 PAYMENT_REQUIRED (zero free usage).
+   - `POST /api/v1/process` (Funded): Authenticated via Bearer token and `X-API-Key` header with automatic €0.05 Gatekeeper wallet deduction.
    - `OPTIONS /api/v1/process`: HTTP 204 No Content with `Access-Control-Allow-Origin: *`.
    - `POST /api/v1/process` (Invalid): Strictly rejected with HTTP 401 UNAUTHORIZED_KEY.
 
